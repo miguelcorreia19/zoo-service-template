@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Dict
 import pathlib
 
 try:
@@ -42,11 +44,17 @@ class CustomStacIO(DefaultStacIO):
     """Custom STAC IO class that uses boto3 to read from S3."""
 
     def __init__(self):
+        print("CustomStacIO init")
+        print("CustomStacIO init")
+        print("CustomStacIO init")
+        print("CustomStacIO init")
+        print("CustomStacIO init")
+        print("CustomStacIO init")
         self.session = botocore.session.Session()
         self.s3_client = self.session.create_client(
             service_name="s3",
             region_name="us-east-1",
-            endpoint_url="http://ades-edito-localstack.ades-edito.svc.cluster.local:4566",
+            endpoint_url="http://eoap-zoo-project-localstack.eoap-zoo-project.svc.cluster.local:4566",
             aws_access_key_id="test",
             aws_secret_access_key="test",
         )
@@ -178,15 +186,10 @@ class SimpleExecutionHandler(ExecutionHandler):
         # of the wrapped Application Package
 
         logger.info("get_additional_parameters")
+        additional_parameters: Dict[str, str] = {}
+        additional_parameters = self.conf.get("additional_parameters", {})
 
-        additional_parameters = {
-            "s3_bucket": "results",
-            "sub_path": self.conf["lenv"]["usid"],
-            "region_name": "us-east-1",
-            "aws_secret_access_key": "test",
-            "aws_access_key_id": "test",
-            "endpoint_url": "http://ades-edito-localstack.ades-edito.svc.cluster.local:4566",
-        }
+        additional_parameters["sub_path"] = self.conf["lenv"]["usid"]
 
         logger.info(f"additional_parameters: {additional_parameters.keys()}")
 
@@ -224,23 +227,18 @@ class SimpleExecutionHandler(ExecutionHandler):
                 }
                 for tool_log in tool_logs
             ]
-            cindex=0
-            if "service_logs" in self.conf:
-                cindex=1
             for i in range(len(services_logs)):
                 okeys = ["url", "title", "rel"]
                 keys = ["url", "title", "rel"]
-                if cindex > 0:
+                if i > 0:
                     for j in range(len(keys)):
-                        keys[j] = keys[j] + "_" + str(cindex)
+                        keys[j] = keys[j] + "_" + str(i)
                 if "service_logs" not in self.conf:
                     self.conf["service_logs"] = {}
                 for j in range(len(keys)):
                     self.conf["service_logs"][keys[j]] = services_logs[i][okeys[j]]
-                cindex += 1
-                logger.warning(f"service_logs: {self.conf['service_logs']}")
 
-            self.conf["service_logs"]["length"] = str(cindex)
+            self.conf["service_logs"]["length"] = str(len(services_logs))
             logger.info(f"service_logs: {self.conf['service_logs']}")
 
         except Exception as e:
@@ -286,7 +284,7 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs):  #
 
         if exit_status == zoo.SERVICE_SUCCEEDED:
             logger.info(f"Setting Collection into output key {list(outputs.keys())[0]}")
-            outputs[list(outputs.keys())[0]]["value"] = json.dumps(
+            outputs["stac_catalog"]["value"] = json.dumps(
                 execution_handler.results, indent=2
             )
             return zoo.SERVICE_SUCCEEDED
@@ -300,38 +298,6 @@ def {{cookiecutter.workflow_id |replace("-", "_")  }}(conf, inputs, outputs):  #
 
         logger.error("ERROR in processing execution template...")
         logger.error("Try to fetch the tool logs if any...")
-
-        try:
-            # TODO: Why does this job log not fetched in case of success?
-            with open(os.path.join(
-                conf["main"]["tmpPath"],
-                runner.get_namespace_name(),
-                "job.log"),
-                "w",
-                encoding="utf-8") as file:
-                file.write(runner.execution.get_log())
-            len=1
-            if "service_logs" not in conf:
-                conf["service_logs"] = {}
-            else:
-                len=int(conf["service_logs"]["length"])
-            keys=["url","title","rel"]
-            if "length" in conf["service_logs"]:
-                for i in range(len(keys)):
-                    keys[i]+="_"+str(int(conf["service_logs"]["length"]))
-            conf["service_logs"][keys[0]]=os.path.join(
-                conf['main']['tmpUrl'].replace(
-                    "temp/",conf["auth_env"]["user"]+"/temp/"
-                ),
-                runner.get_namespace_name(),
-                "job.log"
-            )
-            conf["service_logs"][keys[1]]="Job pod log"
-            conf["service_logs"][keys[2]]="related"
-            conf["service_logs"]["length"]=str(len+1)
-            logger.info("Job log saved")
-        except Exception as e:
-            logger.error(f"{str(e)}")
 
         try:
             tool_logs = runner.execution.get_tool_logs()
